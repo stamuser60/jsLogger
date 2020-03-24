@@ -1,0 +1,41 @@
+{
+  "name": "@stamscope/jslogger",
+  "version": "1.4.2",
+  "description": "Default logger used by micro-services written in JS/TS",
+  "main": "build/index.js",
+  "types": "build/index.d.ts",
+  "scripts": {
+    "test": "mocha -r ts-node/register tests/**/*.test.ts",
+    "start": "node build/index.js",
+    "prepublish": "tsc"
+  },
+  "dependencies": {
+    "@types/axios": "^0.14.0",
+    "@types/elasticsearch": "^5.0.19",
+    "@types/node": "^13.1.0",
+    "@types/winston": "^2.4.4",
+    "axios": "^0.19.0",
+    "elasticsearch": "^16.3.0",
+    "typescript": "^3.8.3",
+    "winston": "^3.1.0",
+    "winston-elasticsearch": "^0.7.5"
+  },
+  "devDependencies": {
+    "@types/chai": "^4.1.7",
+    "@types/mocha": "^5.2.7",
+    "@types/sinon": "^7.0.12",
+    "@types/supertest": "^2.0.6",
+    "chai": "^4.0.2",
+    "dotenv": "^8.1.0",
+    "mocha": "^6.2.0",
+    "sinon": "^7.5.0",
+    "supertest": "^4.0.2",
+    "ts-node": "^8.1.0",
+    "ts-node-dev": "^1.0.0-pre.32"
+  },
+  "publishConfig": {
+    "registry": "https://registry.npmjs.org/"
+  },
+  "author": "",
+  "license": "ISC"
+}
