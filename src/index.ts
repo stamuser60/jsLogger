@@ -1,10 +1,10 @@
-import axios, {AxiosError} from 'axios'
+import axios from 'axios'
 import {createLogger as winstonCreateLogger, format, LogCallback, Logger, transports} from 'winston';
 import Transport from 'winston-transport';
 import * as stream from "stream";
 
-type LogLevels = 'error' | 'warn' | 'info' | 'debug' | 'verbose' | 'silly'
-type LogEntry = { level: LogLevels, [key: string]: any }
+type LogLevel = 'error' | 'warn' | 'info' | 'debug' | 'verbose' | 'silly'
+type LogEntry = { level: LogLevel, [key: string]: any }
 
 interface LeveledLogMethod {
     (message: string, callback: LogCallback): Logger;
@@ -19,15 +19,15 @@ interface LeveledLogMethod {
 }
 
 interface LogMethod {
-    (level: LogLevels, message: string, callback: LogCallback): Logger;
+    (level: LogLevel, message: string, callback: LogCallback): Logger;
 
-    (level: LogLevels, message: string, meta: object, callback: LogCallback): Logger;
+    (level: LogLevel, message: string, meta: object, callback: LogCallback): Logger;
 
-    (level: LogLevels, message: string, meta: object): Logger;
+    (level: LogLevel, message: string, meta: object): Logger;
 
-    (level: LogLevels, message: string): Logger;
+    (level: LogLevel, message: string): Logger;
 
-    (level: LogLevels, meta: object): Logger;
+    (level: LogLevel, meta: object): Logger;
 
     (entry: LogEntry): Logger;
 }
@@ -54,11 +54,33 @@ interface CprLogger extends stream.Transform {
 }
 
 interface LoggerOptions {
+    /**
+     * List of transports that the logger will use
+     */
     transports?: Transport[],
+    /**
+     * By default, the logger will use a console transport,
+     * if you wish to disable it, pass false
+     */
     useDefaultConsoleTransport?: boolean,
+    /**
+     * If true, will not output any messages
+     */
     silent?: boolean,
-    level?: LogLevels,
-
+    /**
+     * Any log with lower level than what is set here will not be outputted
+     */
+    level?: LogLevel,
+    /**
+     * Optional key that will be added to every log.
+     * No reason not to specify this key so there will be more context when reading the logs.
+     * The key, as it name states, should hold the name of the service that runs the logger.
+     */
+    serviceName?: string
+    /**
+     * An error handler
+     * @param err: the error that occurred
+     */
     onError?(err: Error): void
 }
 
@@ -117,6 +139,26 @@ const messageDisassembler = format((info) => {
 });
 
 /**
+ * Format function to apply to a logger/transport.
+ *
+ * Adds to the log a key named `serviceName` and sets its value to the parameter `serviceName`
+ * that is passed to the closure
+ */
+const addServiceNameKey = (serviceName?: string) => {
+    return format((info) => {
+        if (info.serviceName) {
+            return info
+        }
+        if (serviceName) {
+            info['serviceName'] = serviceName;
+        }
+        return info;
+    });
+};
+
+/**
+ * Format function to apply to a logger/transport.
+ *
  * Sets the value of `Symbol.for('message')` index in the info object
  * to the json of the values in the info object.
  * This is done to make sure that transports that use that value (the info[Symbol.for('message')])
@@ -134,10 +176,11 @@ const messageSymbolInfoUpdater = format(info => {
  * are being logged the way they should, without any side affects, no matter
  * what transport we use and how our log function call looks like.
  */
-function getLoggerFormats() {
+function getLoggerFormats(serviceName?: string) {
     return format.combine(
         format.timestamp(),
         messageDisassembler(),
+        addServiceNameKey(serviceName)(),
         messageSymbolInfoUpdater(),
     );
 }
@@ -170,7 +213,7 @@ function createLogger(options?: LoggerOptions): CprLogger {
         silent: (options && options.silent) ? options.silent : false,
         level: (options && options.level) ? options.level : undefined,
         transports: getLoggerTransports(options),
-        format: getLoggerFormats(),
+        format: getLoggerFormats((options && options.serviceName) ? options.serviceName : undefined),
         exitOnError: false,
     });
 
@@ -186,6 +229,9 @@ interface HttpTransportOpts {
     host: string
     port: number
     path: string
+    /**
+     * If https is needed set to true
+     */
     ssl?: boolean
 }
 
@@ -195,8 +241,14 @@ interface HttpTransportOpts {
  * the case when trying to access different micro-services on openshift.
  */
 class HttpTransport extends Transport {
-
+    /**
+     * The url that is used when sending the log
+     */
     readonly url: string;
+    /**
+     * As with the logger, this is the minimum log level of any log that will be outputted
+     */
+    readonly level: LogLevel;
 
     /**
      * Receives the options passed and returns the url constructed from them
@@ -211,28 +263,13 @@ class HttpTransport extends Transport {
     /**
      * Can pass to the constructor either a full url as a string,
      * or an `CprHttpOpts` object
-     * @param opts
+     * @param opts: either string or a `HttpTransportOpts` object to initialize the transport
+     * @param level: the level that the transport should operate in
      */
-    constructor(opts: HttpTransportOpts | string) {
+    constructor(opts: HttpTransportOpts | string, level?: LogLevel) {
         super();
         this.url = typeof opts === 'object' ? this.assembleUrl(opts) : opts;
-    }
-
-    /**
-     * Extracts the needed data from an axios error object
-     * @param err: axios error object
-     */
-    private getAxiosErrorData(err: AxiosError) {
-        let errData: {[key: string]: any} = {};
-        if (err.response) {
-            errData['status'] = err.response.status;
-            errData['data'] = err.response.data;
-        }
-        return {
-            ...errData,
-            method: err.request.method,
-            path: err.request.res.responseUrl,
-        };
+        this.level = level ? level : 'info';
     }
 
     /**
@@ -256,12 +293,11 @@ class HttpTransport extends Transport {
                 this.emit('logged', info);
             })
             .catch(error => {
-                let errData: object;
-                if (error.isAxiosError) {
-                    errData = this.getAxiosErrorData(error)
-                } else {
-                    errData = {msg: error.msg}
-                }
+                const errData = {
+                    msg: error.toString(),
+                    url: this.url,
+                    from: 'Originated from transport HttpTransport\'s log method'
+                };
                 this.emit('error', errData);
             });
         next();
@@ -273,7 +309,7 @@ export {
     defaultConsoleTransport,
     CprLogger,
     LoggerOptions,
-    LogLevels,
+    LogLevel,
     LogEntry,
     LeveledLogMethod,
     LogMethod,

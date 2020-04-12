@@ -1,6 +1,6 @@
 {
   "name": "@stamscope/jslogger",
-  "version": "1.4.2",
+  "version": "1.5.0",
   "description": "Default logger used by micro-services written in JS/TS",
   "main": "build/index.js",
   "types": "build/index.d.ts",

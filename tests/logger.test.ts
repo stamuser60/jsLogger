@@ -51,16 +51,18 @@ describe('Default Logger', function () {
             expect(loggedObject[Symbol.for('message')]).to.include(`"message":"test"`)
         });
 
-        it('should have the message value of the parameter inserted and not the one in the meta object, if present', function () {
+        it('should use both the message inside the parameter passed and the meta object, as it does in winston', function () {
             logger.info('test', {message: 'test2'});
             let calledArgs = stubbedLog.getCall(0).args;
             let loggedObject = calledArgs[0];
-            expect(loggedObject.message).to.be.eq('test')
-            expect(loggedObject[Symbol.for('message')]).to.include(`"message":"test"`)
+            expect(loggedObject.message).to.be.eq('testtest2')
+            expect(loggedObject[Symbol.for('message')]).to.include(`"message":"testtest2"`)
+        });
 
+        it('should use the message string passed', function () {
             logger.info('test');
-            calledArgs = stubbedLog.getCall(0).args;
-            loggedObject = calledArgs[0];
+            let calledArgs = stubbedLog.getCall(0).args;
+            let loggedObject = calledArgs[0];
             expect(loggedObject.message).to.be.eq('test')
             expect(loggedObject[Symbol.for('message')]).to.include(`"message":"test"`)
         });
@@ -70,6 +72,31 @@ describe('Default Logger', function () {
             let calledArgs = stubbedLog.getCall(0).args;
             let loggedObject = calledArgs[0];
             expect(loggedObject.someKey).to.be.eq('some Value')
+        });
+
+        it('should add `serviceName` key to the log if specified when creating the logger', function () {
+            const logger = createLogger({
+                transports: [testTransport],
+                useDefaultConsoleTransport: false,
+                serviceName: 'test'
+            });
+            logger.info({someKey: 'some Value'});
+            let calledArgs = stubbedLog.getCall(0).args;
+            let loggedObject = calledArgs[0];
+            expect(loggedObject.someKey).to.be.eq('some Value');
+            expect(loggedObject.serviceName).to.be.eq('test')
+        });
+
+        it('should not override any `serviceName` key if already present on the log', function () {
+            const logger = createLogger({
+                transports: [testTransport],
+                useDefaultConsoleTransport: false,
+                serviceName: 'test'
+            });
+            logger.info({someKey: 'some Value', serviceName: 'other'});
+            let calledArgs = stubbedLog.getCall(0).args;
+            let loggedObject = calledArgs[0];
+            expect(loggedObject.serviceName).to.be.eq('other')
         });
     });
 });
