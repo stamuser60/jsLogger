@@ -98,6 +98,11 @@ describe('Default Logger', function () {
             let loggedObject = calledArgs[0];
             expect(loggedObject.serviceName).to.be.eq('other')
         });
+        it('should allow changing levels of the logger', function () {
+            const logger = createLogger({level: 'debug'});
+            logger.level = "silly"
+            expect(logger.level).to.be.eq('silly')
+        });
     });
 });
 

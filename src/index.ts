@@ -44,6 +44,8 @@ interface CprLogger extends stream.Transform {
     verbose: LeveledLogMethod;
     silly: LeveledLogMethod;
 
+    level: LogLevel;
+
     add(transport: Transport): CprLogger;
 
     remove(transport: Transport): CprLogger;
